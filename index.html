@@ -27,9 +27,17 @@
       <div class="stage" id="stage">
         <div class="jar-wrap" id="jarWrap">
           <svg class="jar" viewBox="-10 0 250 290" aria-hidden="true">
+            <defs>
+              <radialGradient id="jarGlow" cx="50%" cy="62%" r="58%">
+                <stop offset="0" style="stop-color: var(--glow)" stop-opacity=".8"/>
+                <stop offset=".55" style="stop-color: var(--glow)" stop-opacity=".25"/>
+                <stop offset="1" style="stop-color: var(--glow)" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <path class="jar__glow" d="M64 52 C64 70 28 74 28 102 L28 236 Q28 262 54 262 L146 262 Q172 262 172 236 L172 102 C172 74 136 70 136 52 Z"/>
             <path d="M64 52 C64 70 28 74 28 102 L28 236 Q28 262 54 262 L146 262 Q172 262 172 236 L172 102 C172 74 136 70 136 52"/>
             <path d="M60 52 H140"/>
-            <path d="M64 30 H136 V52 M64 30 V52"/>
+            <g class="jar__lid"><path d="M64 30 H136 V52 H64 Z"/></g>
             <path class="jar__hint" d="M38 118 V150"/>
           </svg>
           <canvas class="bits-canvas" id="bitsCanvas" aria-hidden="true"></canvas>
@@ -59,17 +67,21 @@
 
       <!-- full reveal -->
       <div class="reveal" id="reveal" hidden>
-        <p class="label" id="revealSubject"></p>
         <p class="fact" id="revealText"></p>
-        <p class="source" id="revealSource" hidden><a id="revealSourceLink" href="#" target="_blank" rel="noopener"></a></p>
-        <div class="actions" id="revealActions" hidden>
+        <p class="meta" id="revealMeta">
+          <span id="revealSubject"></span>
+          <span class="meta__dot" aria-hidden="true">·</span>
+          <a id="revealSourceLink" href="#" target="_blank" rel="noopener"></a>
+        </p>
+        <div class="actions" id="revealActions">
           <button type="button" class="textbtn" id="againBtn">Again</button>
+          <button type="button" class="textbtn" id="saveBtn" aria-pressed="false">Save</button>
           <button type="button" class="textbtn" id="shareBtn">Share</button>
-          <a class="textbtn" href="#collection">Collection</a>
         </div>
       </div>
 
-      <button type="button" class="skip textbtn" id="skipBtn" hidden>Skip</button>
+      <canvas class="flight-canvas" id="flightCanvas" aria-hidden="true"></canvas>
+      <button type="button" class="skip textbtn" id="skipBtn" hidden>Tap to skip</button>
       <p class="sr-only" id="srStatus" aria-live="polite"></p>
     </section>
 
@@ -80,7 +92,7 @@
         <p class="coll-total" id="collTotal"></p>
       </header>
       <div class="coll-list" id="collList"></div>
-      <p class="coll-foot"><button type="button" class="textbtn textbtn--quiet" id="clearBtn">Clear collection</button></p>
+      <p class="coll-foot"><button type="button" class="textbtn textbtn--quiet" id="clearBtn">Clear saved facts</button></p>
     </section>
   </main>
 

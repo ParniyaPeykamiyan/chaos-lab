@@ -76,6 +76,27 @@ export class Jar {
     });
   }
 
+  // Stillness: any bit still falling lands immediately.
+  settleAll() {
+    const now = performance.now();
+    for (const b of this.bits) b.born = Math.min(b.born, now - b.dur);
+  }
+
+  // Hand every bit over (in screen coordinates) and leave the jar empty.
+  takeAll() {
+    const r = this.canvas.getBoundingClientRect();
+    const toScreen = (x, y) => ({
+      x: r.left + ((x - VB.x) / VB.w) * r.width,
+      y: r.top + ((y - VB.y) / VB.h) * r.height,
+    });
+    const bits = this.bits.map(b => ({ ...toScreen(b.tx, b.ty), value: b.value }));
+    this.bits = [];
+    this.leaving = [];
+    this.heights.fill(0);
+    const size = this.cellH * 0.78 * (r.width / VB.w);
+    return { bits, mouth: toScreen(100, 30), size };
+  }
+
   empty() {
     const now = performance.now();
     this.leaving = this.bits.map(b => ({ ...b, gone: now }));
@@ -86,6 +107,12 @@ export class Jar {
   draw(now) {
     const { ctx, canvas, sprites } = this;
     if (!this.scale) return;
+    // follow the text colour (it glides when the lights go down)
+    if (!this.colorCheck || now - this.colorCheck > 120) {
+      this.colorCheck = now;
+      const c = getComputedStyle(canvas).color;
+      if (c !== this.color) { this.color = c; this.buildSprites(); }
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (!sprites) return;

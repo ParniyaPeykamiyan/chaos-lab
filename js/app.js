@@ -1,5 +1,6 @@
 import { EntropyPool } from './entropy.js';
 import { Jar } from './jar.js';
+import { Flight } from './flight.js';
 import * as sound from './sound.js';
 
 // ---------------------------------------------------------------- settings
@@ -17,7 +18,8 @@ const INPUT = {
 
 const LS = {
   explained: 'chaoslab.explained.v1',
-  collected: 'chaoslab.collected.v1',
+  collected: 'chaoslab.collected.v1',   // facts the user chose to save
+  seen: 'chaoslab.seen.v1',             // every fully revealed fact (to avoid repeats)
   sound: 'chaoslab.sound.v1',
   subject: 'chaoslab.subject.v1',
 };
@@ -55,10 +57,12 @@ const els = {
   reveal: $('reveal'),
   rSubject: $('revealSubject'),
   rText: $('revealText'),
-  rSource: $('revealSource'),
+  rMeta: $('revealMeta'),
   rSourceLink: $('revealSourceLink'),
   rActions: $('revealActions'),
   again: $('againBtn'),
+  save: $('saveBtn'),
+  flightCanvas: $('flightCanvas'),
   share: $('shareBtn'),
   skip: $('skipBtn'),
   sr: $('srStatus'),
@@ -76,6 +80,7 @@ const els = {
 
 const pool = new EntropyPool();
 const jar = new Jar(els.canvas, TARGET);
+const flight = new Flight(els.flightCanvas);
 
 let subjects = [];
 let facts = [];
@@ -148,12 +153,13 @@ async function loadFacts() {
 }
 
 const collected = () => new Set(store.get(LS.collected, []));
+const seen = () => new Set(store.get(LS.seen, store.get(LS.collected, [])));
 const subjectName = fact => subjectById.get(fact.subject).name;
 
 function chooseFact(seed) {
   const subj = els.select.value;
   const inSubject = subj === 'any' ? facts : facts.filter(f => f.subject === subj);
-  const have = collected();
+  const have = seen();
   const fresh = inSubject.filter(f => !have.has(f.id));
   const candidates = fresh.length ? fresh : inSubject;
   return candidates[seed.pickIndex(candidates.length)];
@@ -379,42 +385,112 @@ function makeSkippable() {
 async function fullReveal() {
   if (state.phase === 'revealing' || state.phase === 'revealed') return;
   setBody('explaining');
+  jar.settleAll();                    // everything goes still
   await lockFact();
   await ensureExplained();
   runRevealSequence();
 }
 
-// Everything fades away, a pause, the subject appears small, then the fact fades in word by word.
+const nextFrame = () => new Promise(r => requestAnimationFrame(r));
+const bitsOf = n => Array.from({ length: n }, () => (Math.random() < 0.5 ? '0' : '1')).join('');
+
+function prepareReveal(fact) {
+  // each word: an invisible "ghost" holds its final width; the "live" layer decodes on top
+  els.rText.innerHTML = words(fact.text)
+    .map(w => `<span class="w"><span class="w__ghost">${escapeHtml(w)}</span><span class="w__live" aria-hidden="true"></span></span>`)
+    .join(' ');
+  els.rSubject.textContent = subjectName(fact);
+  els.rSourceLink.href = fact.source;
+  els.rSourceLink.textContent = `Source: ${fact.sourceName || new URL(fact.source).hostname}`;
+  els.rMeta.classList.remove('on');
+  els.rActions.classList.remove('on');
+  els.reveal.classList.remove('fade-in');
+  renderSaveBtn();
+}
+
+// The theatre: stillness, lights down, lid lifts, bits rise to the words, binary decodes into language.
 async function runRevealSequence() {
   const fact = state.fact;
   const ctl = makeSkippable();
   state.skip = ctl;
-  const quick = reducedMotion.matches;
+  const pause = async ms => { await ctl.wait(ms); return ctl.skipped; };
+  const body = document.body.classList;
 
   setBody('reveal');
   state.phase = 'revealing';
-  els.rSubject.textContent = subjectName(fact);
-  els.rSubject.classList.remove('on');
-  els.rText.innerHTML = words(fact.text).map(w => `<span class="w">${escapeHtml(w)}</span>`).join(' ');
-  els.rSource.hidden = true;
-  els.rActions.hidden = true;
+  prepareReveal(fact);
   els.reveal.hidden = false;
-  els.skip.hidden = quick;
 
-  await ctl.wait(quick ? 0 : 1100);          // fade out + pause
-  els.rSubject.classList.add('on');
-  sound.chime();
-  await ctl.wait(quick ? 0 : 700);
-
-  const spans = [...els.rText.querySelectorAll('.w')];
-  const step = Math.max(45, Math.min(110, 1500 / spans.length));
-  for (const el of spans) {
-    if (ctl.skipped) break;
-    el.classList.add('on');
-    await ctl.wait(quick ? 0 : step);
+  if (reducedMotion.matches) {          // a simple fade instead of the choreography
+    body.add('theatre', 'jar-gone');
+    els.reveal.classList.add('fade-in');
+    return finishReveal();
   }
-  await ctl.wait(quick ? 0 : 500);
+  els.skip.hidden = false;
+
+  // 1. a beat of stillness while the UI text fades out
+  if (await pause(450)) return finishReveal();
+
+  // 2. the lights go down
+  body.add('theatre');
+  sound.swell(2.8);
+  if (await pause(650)) return finishReveal();
+
+  // 3. the lid lifts, a soft light inside
+  body.add('lid-open');
+  if (await pause(450)) return finishReveal();
+
+  // 4. the bits rise out and drift to where the words will appear
+  const spans = [...els.rText.querySelectorAll('.w')];
+  const { bits, mouth, size } = jar.takeAll();
+  flight.launch(bits, mouth, spans.map(el => el.getBoundingClientRect()), performance.now(), size);
+  body.add('jar-gone');
+  if (await pause(1250)) return finishReveal();
+
+  // 5. binary decodes into language, word by word
+  await decode(spans, ctl);
+  if (ctl.skipped) return finishReveal();
+  sound.chime();
+
+  // 6. a short pause, then subject and source, then the buttons
+  if (await pause(350)) return finishReveal();
+  els.rMeta.classList.add('on');
+  if (await pause(450)) return finishReveal();
   finishReveal();
+}
+
+async function decode(spans, ctl) {
+  const WORD_MS = 320;
+  const step = Math.max(28, Math.min(110, 1000 / spans.length));
+  const t0 = performance.now();
+  const ws = spans.map((el, i) => ({
+    i,
+    live: el.querySelector('.w__live'),
+    word: el.querySelector('.w__ghost').textContent,
+    start: t0 + i * step,
+    begun: false,
+    done: false,
+    flick: 0,
+  }));
+  for (;;) {
+    if (ctl.skipped) return;
+    const now = performance.now();
+    let pending = false;
+    for (const w of ws) {
+      if (w.done) continue;
+      pending = true;
+      if (now < w.start) continue;
+      if (!w.begun) { w.begun = true; flight.fadeWord(w.i, now); }
+      const p = (now - w.start) / WORD_MS;
+      if (p >= 1) { w.live.textContent = w.word; w.done = true; continue; }
+      if (now - w.flick < 50) continue;          // a calm flicker, not a strobe
+      w.flick = now;
+      const k = Math.floor(Math.max(0, (p - 0.3) / 0.7) * w.word.length);
+      w.live.innerHTML = escapeHtml(w.word.slice(0, k)) + `<span class="bin">${bitsOf(w.word.length - k)}</span>`;
+    }
+    if (!pending) return;
+    await nextFrame();
+  }
 }
 
 function finishReveal() {
@@ -422,32 +498,49 @@ function finishReveal() {
   const fact = state.fact;
   state.skip = null;
   state.partial = false;
+  document.body.classList.add('theatre', 'lid-open', 'jar-gone');
+  jar.takeAll();
+  flight.clear();
   setBody('revealed');
   els.skip.hidden = true;
   els.reveal.hidden = false;
-  els.rSubject.classList.add('on');
-  els.rText.querySelectorAll('.w').forEach(el => el.classList.add('on'));
-  els.rSourceLink.href = fact.source;
-  els.rSourceLink.textContent = `Source: ${fact.sourceName || new URL(fact.source).hostname}`;
-  els.rSource.hidden = false;
-  els.rActions.hidden = false;
-  els.sr.textContent = `${subjectName(fact)}. ${fact.text}`;
+  els.rText.querySelectorAll('.w').forEach(el => {
+    el.querySelector('.w__live').textContent = el.querySelector('.w__ghost').textContent;
+  });
+  els.rMeta.classList.add('on');
+  els.rActions.classList.add('on');
+  els.sr.textContent = `${fact.text} (${subjectName(fact)})`;
   window.scrollTo(0, 0);
 
-  const have = collected();
-  if (!have.has(fact.id)) {
-    have.add(fact.id);
-    store.set(LS.collected, [...have]);
-  }
+  const s = seen();
+  s.add(fact.id);
+  store.set(LS.seen, [...s]);
 }
 
 function again() {
+  els.reveal.hidden = true;
+  document.body.classList.remove('theatre', 'lid-open', 'jar-gone');
   jar.empty();
   sound.pour();
-  els.reveal.hidden = true;
   setStatus('');
   startCollecting();
   window.scrollTo(0, 0);
+}
+
+function renderSaveBtn() {
+  const on = !!state.fact && collected().has(state.fact.id);
+  els.save.setAttribute('aria-pressed', String(on));
+  els.save.textContent = on ? 'Saved' : 'Save';
+}
+
+function toggleSave() {
+  if (!state.fact) return;
+  const c = collected();
+  const id = state.fact.id;
+  if (c.has(id)) c.delete(id); else c.add(id);
+  store.set(LS.collected, [...c]);
+  renderSaveBtn();
+  toast(c.has(id) ? 'Saved to your collection' : 'Removed from your collection');
 }
 
 // ---------------------------------------------------------------- explanation
@@ -512,14 +605,14 @@ function renderSoundBtn() {
 function renderCollection() {
   const have = collected();
   const got = facts.filter(f => have.has(f.id)).length;
-  els.collTotal.textContent = `${got} of ${facts.length} facts`;
+  els.collTotal.textContent = got === 1 ? '1 saved fact' : `${got} saved facts`;
   els.collList.innerHTML = subjects.map(s => {
     const all = facts.filter(f => f.subject === s.id);
     const mine = all.filter(f => have.has(f.id));
     const pct = all.length ? (mine.length / all.length) * 100 : 0;
     const list = mine.length
       ? `<ul class="subj__facts">${mine.map(f => `<li>${escapeHtml(smart(f.text))}<a href="${escapeHtml(f.source)}" target="_blank" rel="noopener">source</a></li>`).join('')}</ul>`
-      : `<p class="subj__empty">None yet.</p>`;
+      : `<p class="subj__empty">Nothing saved yet.</p>`;
     return `<details class="subj">
       <summary>
         <span class="subj__name">${escapeHtml(s.name)}</span>
@@ -537,6 +630,7 @@ function route() {
   const view = location.hash === '#collection' ? 'collection' : 'booth';
   state.view = view;
   document.body.dataset.view = view;
+  document.body.classList.toggle('theatre', view === 'booth' && state.phase === 'revealed');
   Object.entries(els.views).forEach(([k, el]) => { el.hidden = k !== view; });
   // the nav's first link toggles between the jar and the collection
   els.navCollection.textContent = view === 'collection' ? 'Jar' : 'Collection';
@@ -549,6 +643,7 @@ function route() {
 
 function loop(now) {
   jar.draw(now);
+  if (flight.active) flight.draw(now);
   if (state.phase === 'collecting' && state.bits > 0 && !state.stillHandled && now - state.lastActive > STILL_MS) {
     state.stillHandled = true;
     onStill();
@@ -567,6 +662,9 @@ function init() {
 
   els.begin.addEventListener('click', begin);
   els.again.addEventListener('click', again);
+  els.save.addEventListener('click', toggleSave);
+  // tap anywhere to skip the reveal
+  document.addEventListener('pointerdown', () => { if (state.skip) state.skip.skip(); });
   els.share.addEventListener('click', shareFact);
   els.skip.addEventListener('click', () => state.skip && state.skip.skip());
   els.how.addEventListener('click', () => openExplain(false));
@@ -578,7 +676,7 @@ function init() {
     if (sound.isEnabled()) sound.chime();
   });
   els.clear.addEventListener('click', () => {
-    if (confirm('Clear every fact from your collection?')) {
+    if (confirm('Clear all saved facts?')) {
       store.set(LS.collected, []);
       renderCollection();
     }

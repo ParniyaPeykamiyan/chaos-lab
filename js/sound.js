@@ -54,6 +54,29 @@ export function hum() {
   tone(293.66, t + 0.08, 0.3, 0.05, 1.5);
 }
 
+// a quiet low swell while the lights go down
+export function swell(seconds = 2.6) {
+  if (!enabled || !ensure()) return;
+  const t = ctx.currentTime;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(220, t);
+  filter.frequency.linearRampToValueAtTime(700, t + seconds * 0.7);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.09, t + seconds * 0.65);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
+  filter.connect(g).connect(master);
+  [[98, 'sawtooth'], [146.83, 'sine'], [196, 'sine'], [98.6, 'sawtooth']].forEach(([f, type]) => {
+    const o = ctx.createOscillator();
+    o.type = type;
+    o.frequency.value = f;
+    o.connect(filter);
+    o.start(t);
+    o.stop(t + seconds + 0.1);
+  });
+}
+
 // two gentle bell notes for the full reveal
 export function chime() {
   if (!enabled || !ensure()) return;

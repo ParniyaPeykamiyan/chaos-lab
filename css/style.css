@@ -60,7 +60,7 @@ button { font: inherit; color: inherit; }
 .textbtn,
 .nav__link,
 .picker select,
-.source,
+.meta,
 .toast {
   font-family: var(--mono);
   font-size: 11px;
@@ -187,7 +187,7 @@ main { min-height: 100svh; }
 .picker select:disabled { color: var(--muted); cursor: default; }
 .picker select option { background: var(--bg); color: var(--ink); }
 
-body[data-state="collecting"] #beginBtn { display: none; }
+body:not([data-state="intro"]) #beginBtn { display: none; }
 
 /* ---------- partial reveal ---------- */
 
@@ -220,17 +220,54 @@ body[data-state="collecting"] #beginBtn { display: none; }
 .fact--partial .w.on { color: var(--ink); }
 .fact--partial .w.new { color: var(--accent); transition: color 1.2s var(--ease), opacity 700ms var(--ease); }
 
-/* ---------- full reveal ---------- */
+/* ---------- full reveal: the theatre ---------- */
 
-body[data-state="reveal"] .stage,
+/* 1. stillness: the UI text fades away */
+body[data-state="reveal"] .counter,
+body[data-state="reveal"] .controls,
+body[data-state="reveal"] .partial,
 body[data-state="reveal"] .nav,
 body[data-state="reveal"] .foot { opacity: 0; pointer-events: none; }
+.counter, .controls, .partial { transition: opacity 600ms var(--ease); }
+
+/* 2. the lights go down: swap to a near-black palette; colours glide via transitions */
+body { transition: background-color 1.6s var(--ease), color 1.6s var(--ease); }
+.jar path { transition: stroke 1.6s var(--ease); }
+body.theatre {
+  --bg: #0b0a09;
+  --ink: #ece8df;
+  --muted: #7d786e;
+  --line: #2a2825;
+  --accent: #d59474;
+}
+
+/* 3. the lid lifts and a soft light appears inside */
+.jar .jar__glow { fill: url(#jarGlow); stroke: none; opacity: 0; transition: opacity 1.4s var(--ease); }
+.jar__lid { transform-box: fill-box; transform-origin: 0% 100%; transition: transform 1.4s var(--ease); }
+body.lid-open .jar__lid { transform: translate(-2px, -11px) rotate(-7deg); }
+body.lid-open .jar .jar__glow { opacity: 1; }
+:root { --glow: #f2dcbc; }
+
+/* 4. once the bits have left, the jar recedes */
+.jar-wrap { transition: opacity 1.2s var(--ease); }
+body.jar-gone .jar-wrap { opacity: 0; }
+
 body[data-state="revealed"] .stage { display: none; }
+
+.flight-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  color: var(--ink);
+}
 
 .reveal {
   position: fixed;
   inset: 0;
-  z-index: 5;
+  z-index: 6;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -240,18 +277,41 @@ body[data-state="revealed"] .stage { display: none; }
   overflow-y: auto;
 }
 body[data-state="revealed"] .reveal { position: static; min-height: 100svh; }
-.reveal .label { margin-bottom: 22px; color: var(--accent); opacity: 0; transition: opacity 800ms var(--ease); }
-.reveal .label.on { opacity: 1; }
 .reveal .fact { max-width: 680px; }
-.source { margin: 30px 0 0; color: var(--muted); animation: fadeIn 800ms var(--ease) both; }
-.source a { text-decoration: none; border-bottom: 1px solid var(--line); }
-.source a:hover { color: var(--ink); }
+
+/* 5. decoding: each word holds its final width (ghost) while the live layer resolves */
+.reveal .w { opacity: 1; position: relative; display: inline-block; white-space: nowrap; }
+.w__ghost { visibility: hidden; }
+.w__live { position: absolute; left: 0; top: 0; }
+.w__live .bin {
+  font-family: var(--mono);
+  font-size: .58em;
+  letter-spacing: .06em;
+  color: var(--muted);
+  vertical-align: .18em;
+}
+
+/* 6. subject, source and buttons arrive last */
+.meta {
+  margin: 34px 0 0;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 900ms var(--ease);
+}
+.meta #revealSubject { color: var(--accent); }
+.meta__dot { margin: 0 .7em; }
+.meta a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line); }
+.meta a:hover { color: var(--ink); }
 .actions {
   display: flex;
   gap: 28px;
   margin-top: 40px;
-  animation: fadeIn 800ms 200ms var(--ease) both;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 900ms var(--ease);
 }
+.meta.on, .actions.on { opacity: 1; pointer-events: auto; }
+#saveBtn[aria-pressed="true"] { color: var(--accent); }
 
 .skip {
   position: fixed;
@@ -353,3 +413,8 @@ body[data-view="collection"] .foot { display: none; }
 
 /* once part of the fact is showing, only the jar, counter and fact remain */
 body.has-partial .controls { display: none; }
+
+/* reduced motion: no theatre choreography, just a simple fade */
+@media (prefers-reduced-motion: reduce) {
+  .reveal.fade-in { animation: fadeIn 700ms ease both !important; }
+}
