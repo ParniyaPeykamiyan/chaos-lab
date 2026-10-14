@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Chaos Lab</title>
+  <meta name="description" content="Shake your phone or move your mouse to fill a jar with random bits. The bits choose a true, sourced fact.">
+  <meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141311" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-state="intro">
+  <nav class="nav" aria-label="Main">
+    <a href="#collection" class="nav__link" id="navCollection">Collection</a>
+    <button type="button" class="nav__link" id="howBtn">How it works</button>
+  </nav>
+
+  <main>
+    <!-- ============ JAR ============ -->
+    <section id="booth" class="view" aria-labelledby="pageTitle">
+      <h1 id="pageTitle" class="sr-only">Chaos Lab</h1>
+
+      <div class="stage" id="stage">
+        <div class="jar-wrap" id="jarWrap">
+          <svg class="jar" viewBox="-10 0 250 290" aria-hidden="true">
+            <path d="M64 52 C64 70 28 74 28 102 L28 236 Q28 262 54 262 L146 262 Q172 262 172 236 L172 102 C172 74 136 70 136 52"/>
+            <path d="M60 52 H140"/>
+            <path d="M64 30 H136 V52 M64 30 V52"/>
+            <path class="jar__hint" d="M38 118 V150"/>
+          </svg>
+          <canvas class="bits-canvas" id="bitsCanvas" aria-hidden="true"></canvas>
+        </div>
+
+        <p class="counter" aria-live="off"><span id="counterDigits">0</span> / <span id="counterTarget">128</span> bits</p>
+
+        <div class="controls" id="controls">
+          <p class="line" id="introLine">Move your mouse to fill the jar.</p>
+          <p class="line line--quiet" id="statusLine" aria-live="polite"></p>
+          <div class="row">
+            <label class="picker">
+              <span class="sr-only">Subject</span>
+              <select id="subjectSelect" aria-label="Subject"></select>
+            </label>
+            <button type="button" class="textbtn" id="beginBtn">Begin</button>
+          </div>
+        </div>
+
+        <!-- partial reveal -->
+        <div class="partial" id="partial" hidden>
+          <p class="label" id="partialSubject"></p>
+          <p class="fact fact--partial" id="partialText"></p>
+          <p class="line line--quiet" id="partialPrompt"></p>
+        </div>
+      </div>
+
+      <!-- full reveal -->
+      <div class="reveal" id="reveal" hidden>
+        <p class="label" id="revealSubject"></p>
+        <p class="fact" id="revealText"></p>
+        <p class="source" id="revealSource" hidden><a id="revealSourceLink" href="#" target="_blank" rel="noopener"></a></p>
+        <div class="actions" id="revealActions" hidden>
+          <button type="button" class="textbtn" id="againBtn">Again</button>
+          <button type="button" class="textbtn" id="shareBtn">Share</button>
+          <a class="textbtn" href="#collection">Collection</a>
+        </div>
+      </div>
+
+      <button type="button" class="skip textbtn" id="skipBtn" hidden>Skip</button>
+      <p class="sr-only" id="srStatus" aria-live="polite"></p>
+    </section>
+
+    <!-- ============ COLLECTION ============ -->
+    <section id="collection" class="view" hidden aria-labelledby="collTitle">
+      <header class="coll-head">
+        <h2 id="collTitle" class="label">Collection</h2>
+        <p class="coll-total" id="collTotal"></p>
+      </header>
+      <div class="coll-list" id="collList"></div>
+      <p class="coll-foot"><button type="button" class="textbtn textbtn--quiet" id="clearBtn">Clear collection</button></p>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <button type="button" class="textbtn textbtn--quiet" id="soundBtn" aria-pressed="false">Sound off</button>
+  </footer>
+
+  <!-- ============ EXPLANATION ============ -->
+  <dialog id="explain" class="dialog" aria-labelledby="explainTitle">
+    <p class="label" id="explainTitle">How it works</p>
+    <p>The 0s and 1s are bits, the smallest unit of computer data.</p>
+    <p>Your movements are full of tiny, unpredictable wobbles, and the sensor turns them into random bits.</p>
+    <p>Computers struggle to be truly random on their own, so messy real-world data like this is useful. It is mixed with your browser's own randomness, so it is never less random.</p>
+    <p>These bits are now used to choose your fact.</p>
+    <form method="dialog">
+      <button class="textbtn" value="ok" id="explainOk">Continue</button>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+# Chaos Lab
+
+Fill a jar with randomness, and the randomness picks a true fact.
+
+Shake your phone (or move your mouse on a computer). Every tiny, unpredictable wobble becomes a 0 or a 1 that settles into the jar. When the jar is full, those bits choose a fact from 18 subjects, each one checked against a reputable source.
+
+**Live site:** https://parniyapeykamiyan.github.io/chaos-lab/
+
+## How it works
+
+- **Collecting bits.** On phones the page reads the motion sensor (`devicemotion`); on computers it reads mouse movement. If a phone has no motion sensor or permission is declined, you can move your finger around the jar instead. iPhones need a tap on **Begin** to ask for motion permission.
+- **Randomness that is never worse than the browser's.** Each sensor reading is hashed into one visible bit. When a fact is chosen, all the raw motion data is hashed with SHA-256 and XOR-ed with 32 bytes from `crypto.getRandomValues()`. XOR-ing anything with independent random bytes stays uniformly random, so the motion can only add unpredictability. The final pick uses rejection sampling, so there's no modulo bias.
+- **Half-shaken facts.** Stop moving for about 1.5 seconds and part of the fact appears, in proportion to how full the jar is (nothing below 20%). The rest shows as faint binary. The fact is locked at that moment, so moving again reveals the *same* fact word by word.
+- **The reveal.** When the jar is full, everything fades away, the subject appears, and the fact fades in word by word. There is a Skip button, and `prefers-reduced-motion` is respected.
+- **First visit.** The first reveal is preceded by a short explanation of bits and randomness, remembered in `localStorage`. **How it works** opens it any time.
+- **Collection.** Fully revealed facts are saved on your device, with progress per subject.
+- **Share** copies the fact and the site link (phones use the native share sheet). **Sound** is off by default; the sounds are synthesised with the Web Audio API.
+
+## Adding facts
+
+All facts live in [`data/facts.json`](data/facts.json):
+
+```json
+{ "id": "space-01", "subject": "space", "text": "The Sun holds about 99.8% of all the mass in our solar system.", "source": "https://science.nasa.gov/sun/facts/", "sourceName": "NASA" }
+```
+
+- `subject` must match one of the `id`s in the `subjects` list at the top of the file.
+- `id` must be unique.
+- Please verify every fact against a reputable source (encyclopedias, science agencies, universities, major news) and link it in `source`. Avoid common myths and opinions; keep facts about religion, politics, gender and people neutral and factual.
+
+## Running locally
+
+Plain HTML, CSS and JavaScript with no build step. The facts are loaded with `fetch`, so open it through a local server rather than as a file, for example with the VS Code **Live Server** extension, or:
+
+```bash
+npx serve .
+```
+
+Motion sensors only work on secure (`https://`) pages, so to test shaking on a real phone use the GitHub Pages site.
+
+## Files
+
+```
+index.html        page markup
+css/style.css     all styling (light and dark)
+js/app.js         states, input, reveal, collection, share
+js/entropy.js     entropy pool and seed (SHA-256 XOR crypto.getRandomValues)
+js/jar.js         canvas drawing of the bits in the jar
+js/sound.js       synthesised sound effects
+data/facts.json   subjects and sourced facts
+```
