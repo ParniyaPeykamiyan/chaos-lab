@@ -233,7 +233,8 @@ function onPointerMove(e) {
 }
 
 async function begin() {
-  if (sound.isEnabled()) sound.setEnabled(true); // unlock audio inside the tap
+  // audio must be unlocked synchronously inside the tap, before any await (iPhone motion prompt)
+  if (sound.isEnabled()) sound.unlock();
 
   if (device.phoneLike) {
     let granted = device.hasMotion;
@@ -670,11 +671,22 @@ function init() {
   els.how.addEventListener('click', () => openExplain(false));
   els.select.addEventListener('change', () => store.set(LS.subject, els.select.value));
   els.soundBtn.addEventListener('click', () => {
-    sound.setEnabled(!sound.isEnabled());
-    store.set(LS.sound, sound.isEnabled());
+    const on = !sound.isEnabled();
+    sound.setEnabled(on);
+    store.set(LS.sound, on);
     renderSoundBtn();
-    if (sound.isEnabled()) sound.chime();
+    if (!on) return;
+    // create/resume audio inside this tap, then play a short test chime to confirm
+    sound.unlock().then(ok => {
+      if (ok) sound.testChime();
+      else toast('Sound is blocked by this browser');
+    });
   });
+  // any later tap or key press re-unlocks audio (sound left on from a previous visit,
+  // or iOS interrupting audio after the screen locks). Moving the mouse doesn't count.
+  const reunlock = () => { if (sound.isEnabled()) sound.unlock(); };
+  ['pointerdown', 'touchend', 'keydown'].forEach(type =>
+    document.addEventListener(type, reunlock, { capture: true, passive: true }));
   els.clear.addEventListener('click', () => {
     if (confirm('Clear all saved facts?')) {
       store.set(LS.collected, []);
